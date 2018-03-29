@@ -56,7 +56,6 @@ namespace Emby.Server.Implementations.EntryPoints
             values.Add(config.PublicPort.ToString(CultureInfo.InvariantCulture));
             values.Add(_appHost.HttpPort.ToString(CultureInfo.InvariantCulture));
             values.Add(_appHost.HttpsPort.ToString(CultureInfo.InvariantCulture));
-            values.Add((config.EnableHttps || config.RequireHttps).ToString());
             values.Add(_appHost.EnableHttps.ToString());
             values.Add((config.EnableRemoteAccess).ToString());
 
@@ -177,6 +176,12 @@ namespace Emby.Server.Implementations.EntryPoints
                     return;
                 }
 
+                // This should never happen, but the Handle method will throw ArgumentNullException if it does
+                if (localAddress == null)
+                {
+                    return;
+                }
+
                 var natManager = _natManager;
                 if (natManager != null)
                 {
@@ -228,13 +233,15 @@ namespace Emby.Server.Implementations.EntryPoints
 
             // On some systems the device discovered event seems to fire repeatedly
             // This check will help ensure we're not trying to port map the same device over and over
-            var address = device.LocalAddress.ToString();
+            var address = device.LocalAddress;
+
+            var addressString = address.ToString();
 
             lock (_createdRules)
             {
-                if (!_createdRules.Contains(address))
+                if (!_createdRules.Contains(addressString))
                 {
-                    _createdRules.Add(address);
+                    _createdRules.Add(addressString);
                 }
                 else
                 {

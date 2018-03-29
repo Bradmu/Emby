@@ -202,9 +202,7 @@ namespace Emby.Server.Implementations.Data
                     AddColumn(db, "TypedBaseItems", "DateCreated", "DATETIME", existingColumnNames);
                     AddColumn(db, "TypedBaseItems", "DateModified", "DATETIME", existingColumnNames);
                     AddColumn(db, "TypedBaseItems", "IsSeries", "BIT", existingColumnNames);
-                    AddColumn(db, "TypedBaseItems", "IsLive", "BIT", existingColumnNames);
                     AddColumn(db, "TypedBaseItems", "IsNews", "BIT", existingColumnNames);
-                    AddColumn(db, "TypedBaseItems", "IsPremiere", "BIT", existingColumnNames);
                     AddColumn(db, "TypedBaseItems", "EpisodeTitle", "Text", existingColumnNames);
                     AddColumn(db, "TypedBaseItems", "IsRepeat", "BIT", existingColumnNames);
                     AddColumn(db, "TypedBaseItems", "PreferredMetadataLanguage", "Text", existingColumnNames);
@@ -401,9 +399,7 @@ namespace Emby.Server.Implementations.Data
             "IsSports",
             "IsKids",
             "IsSeries",
-            "IsLive",
             "IsNews",
-            "IsPremiere",
             "EpisodeTitle",
             "IsRepeat",
             "CommunityRating",
@@ -521,9 +517,7 @@ namespace Emby.Server.Implementations.Data
                 "IsMovie",
                 "IsSports",
                 "IsSeries",
-                "IsLive",
                 "IsNews",
-                "IsPremiere",
                 "EpisodeTitle",
                 "IsRepeat",
                 "CommunityRating",
@@ -789,9 +783,7 @@ namespace Emby.Server.Implementations.Data
                 saveItemStatement.TryBind("@IsMovie", hasProgramAttributes.IsMovie);
                 saveItemStatement.TryBind("@IsSports", hasProgramAttributes.IsSports);
                 saveItemStatement.TryBind("@IsSeries", hasProgramAttributes.IsSeries);
-                saveItemStatement.TryBind("@IsLive", hasProgramAttributes.IsLive);
                 saveItemStatement.TryBind("@IsNews", hasProgramAttributes.IsNews);
-                saveItemStatement.TryBind("@IsPremiere", hasProgramAttributes.IsPremiere);
                 saveItemStatement.TryBind("@EpisodeTitle", hasProgramAttributes.EpisodeTitle);
                 saveItemStatement.TryBind("@IsRepeat", hasProgramAttributes.IsRepeat);
             }
@@ -801,9 +793,7 @@ namespace Emby.Server.Implementations.Data
                 saveItemStatement.TryBindNull("@IsMovie");
                 saveItemStatement.TryBindNull("@IsSports");
                 saveItemStatement.TryBindNull("@IsSeries");
-                saveItemStatement.TryBindNull("@IsLive");
                 saveItemStatement.TryBindNull("@IsNews");
-                saveItemStatement.TryBindNull("@IsPremiere");
                 saveItemStatement.TryBindNull("@EpisodeTitle");
                 saveItemStatement.TryBindNull("@IsRepeat");
             }
@@ -1400,7 +1390,7 @@ namespace Emby.Server.Implementations.Data
 
             if (TypeRequiresDeserialization(type))
             {
-                using (var stream = _memoryStreamProvider.CreateNew(reader[1].ToBlob()))
+                using (var stream = new MemoryStream(reader[1].ToBlob()))
                 {
                     stream.Position = 0;
 
@@ -1489,19 +1479,7 @@ namespace Emby.Server.Implementations.Data
 
                     if (!reader.IsDBNull(index))
                     {
-                        hasProgramAttributes.IsLive = reader.GetBoolean(index);
-                    }
-                    index++;
-
-                    if (!reader.IsDBNull(index))
-                    {
                         hasProgramAttributes.IsNews = reader.GetBoolean(index);
-                    }
-                    index++;
-
-                    if (!reader.IsDBNull(index))
-                    {
-                        hasProgramAttributes.IsPremiere = reader.GetBoolean(index);
                     }
                     index++;
 
@@ -1519,7 +1497,7 @@ namespace Emby.Server.Implementations.Data
                 }
                 else
                 {
-                    index += 9;
+                    index += 7;
                 }
             }
 
@@ -2322,6 +2300,8 @@ namespace Emby.Server.Implementations.Data
 
             switch (name)
             {
+                case ItemFields.Tags:
+                    return fields.Contains(name) || HasProgramAttributes(query);
                 case ItemFields.HomePageUrl:
                 case ItemFields.CustomRating:
                 case ItemFields.ProductionLocations:
@@ -2330,7 +2310,6 @@ namespace Emby.Server.Implementations.Data
                 case ItemFields.Taglines:
                 case ItemFields.SortName:
                 case ItemFields.Studios:
-                case ItemFields.Tags:
                 case ItemFields.ThemeSongIds:
                 case ItemFields.ThemeVideoIds:
                 case ItemFields.DateCreated:
@@ -2532,9 +2511,7 @@ namespace Emby.Server.Implementations.Data
                 list.Remove("IsMovie");
                 list.Remove("IsSports");
                 list.Remove("IsSeries");
-                list.Remove("IsLive");
                 list.Remove("IsNews");
-                list.Remove("IsPremiere");
                 list.Remove("EpisodeTitle");
                 list.Remove("IsRepeat");
                 list.Remove("ShowId");

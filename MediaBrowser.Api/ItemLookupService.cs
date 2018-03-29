@@ -212,7 +212,7 @@ namespace MediaBrowser.Api
             return GetRemoteImage(request);
         }
 
-        public void Post(ApplySearchCriteria request)
+        public Task Post(ApplySearchCriteria request)
         {
             var item = _libraryManager.GetItemById(new Guid(request.Id));
 
@@ -232,17 +232,15 @@ namespace MediaBrowser.Api
             //item.ProductionYear = request.ProductionYear;
             //item.Name = request.Name;
 
-            var task = _providerManager.RefreshFullItem(item, new MetadataRefreshOptions(_fileSystem)
+            return _providerManager.RefreshFullItem(item, new MetadataRefreshOptions(_fileSystem)
             {
                 MetadataRefreshMode = MetadataRefreshMode.FullRefresh,
                 ImageRefreshMode = MetadataRefreshMode.FullRefresh,
                 ReplaceAllMetadata = true,
                 ReplaceAllImages = request.ReplaceAllImages,
-                SearchResult = request,
-                ForceEnableInternetMetadata = true
+                SearchResult = request
 
             }, CancellationToken.None);
-            Task.WaitAll(task);
         }
 
         /// <summary>

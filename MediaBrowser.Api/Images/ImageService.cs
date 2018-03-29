@@ -435,7 +435,7 @@ namespace MediaBrowser.Api.Images
         /// Posts the specified request.
         /// </summary>
         /// <param name="request">The request.</param>
-        public void Post(PostUserImage request)
+        public Task Post(PostUserImage request)
         {
             var userId = GetPathValue(1);
             AssertCanUpdateUser(_authContext, _userManager, userId, true);
@@ -444,16 +444,14 @@ namespace MediaBrowser.Api.Images
 
             var item = _userManager.GetUserById(userId);
 
-            var task = PostImage(item, request.RequestStream, request.Type, Request.ContentType);
-
-            Task.WaitAll(task);
+            return PostImage(item, request.RequestStream, request.Type, Request.ContentType);
         }
 
         /// <summary>
         /// Posts the specified request.
         /// </summary>
         /// <param name="request">The request.</param>
-        public void Post(PostItemImage request)
+        public Task Post(PostItemImage request)
         {
             var id = GetPathValue(1);
 
@@ -461,9 +459,7 @@ namespace MediaBrowser.Api.Images
 
             var item = _libraryManager.GetItemById(id);
 
-            var task = PostImage(item, request.RequestStream, request.Type, Request.ContentType);
-
-            Task.WaitAll(task);
+            return PostImage(item, request.RequestStream, request.Type, Request.ContentType);
         }
 
         /// <summary>
@@ -660,20 +656,14 @@ namespace MediaBrowser.Api.Images
         private ImageFormat[] GetClientSupportedFormats()
         {
             //Logger.Debug("Request types: {0}", string.Join(",", Request.AcceptTypes ?? new string[] { }));
-            var supportsWebP = (Request.AcceptTypes ?? new string[] { }).Contains("image/webp", StringComparer.OrdinalIgnoreCase);
+            var supportedFormats = (Request.AcceptTypes ?? new string[] { }).Select(i => i.Split(';')[0]).ToArray();
+            var acceptParam = Request.QueryString["accept"];
 
-            var userAgent = Request.UserAgent ?? string.Empty;
-
-            if (!supportsWebP)
-            {
-                if (string.Equals(Request.QueryString["accept"], "webp", StringComparison.OrdinalIgnoreCase))
-                {
-                    supportsWebP = true;
-                }
-            }
+            var supportsWebP = SupportsFormat(supportedFormats, acceptParam, "webp", false);
 
             if (!supportsWebP)
             {
+                var userAgent = Request.UserAgent ?? string.Empty;
                 if (userAgent.IndexOf("crosswalk", StringComparison.OrdinalIgnoreCase) != -1 &&
                     userAgent.IndexOf("android", StringComparison.OrdinalIgnoreCase) != -1)
                 {
@@ -681,16 +671,39 @@ namespace MediaBrowser.Api.Images
                 }
             }
 
+            var formats = new List<ImageFormat>(4);
+
             if (supportsWebP)
             {
-                // Not displaying properly on iOS
-                if (userAgent.IndexOf("cfnetwork", StringComparison.OrdinalIgnoreCase) == -1)
-                {
-                    return new[] { ImageFormat.Webp, ImageFormat.Jpg, ImageFormat.Png };
-                }
+                formats.Add(ImageFormat.Webp);
             }
 
-            return new[] { ImageFormat.Jpg, ImageFormat.Png };
+            formats.Add(ImageFormat.Jpg);
+            formats.Add(ImageFormat.Png);
+
+            if (SupportsFormat(supportedFormats, acceptParam, "gif", true))
+            {
+                formats.Add(ImageFormat.Gif);
+            }
+
+            return formats.ToArray();
+        }
+
+        private bool SupportsFormat(string[] requestAcceptTypes, string acceptParam, string format, bool acceptAll)
+        {
+            var mimeType = "image/" + format;
+
+            if (requestAcceptTypes.Contains(mimeType))
+            {
+                return true;
+            }
+
+            if (acceptAll && requestAcceptTypes.Contains("*/*"))
+            {
+                return true;
+            }
+
+            return string.Equals(Request.QueryString["accept"], format, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

@@ -206,7 +206,7 @@ namespace MediaBrowser.Controller.Entities
                 item.DateModified = DateTime.UtcNow;
             }
 
-            LibraryManager.CreateItem(item, cancellationToken);
+            LibraryManager.CreateItem(item);
         }
 
         /// <summary>
@@ -361,29 +361,18 @@ namespace MediaBrowser.Controller.Entities
             var validChildren = new List<BaseItem>();
             var validChildrenNeedGeneration = false;
 
-            var allLibraryPaths = LibraryManager
-              .GetVirtualFolders()
-              .SelectMany(i => i.Locations)
-              .ToList();
-
             if (IsFileProtocol)
             {
-                var isOffline = false;
                 IEnumerable<BaseItem> nonCachedChildren;
 
                 try
                 {
                     nonCachedChildren = GetNonCachedChildren(directoryService);
                 }
-                catch (IOException ex)
+                catch (Exception ex)
                 {
-                    nonCachedChildren = new BaseItem[] { };
-
-                    Logger.ErrorException("Error getting file system entries for {0}", ex, Path);
-                    isOffline = true;
+                    return;
                 }
-
-                if (nonCachedChildren == null) return; //nothing to validate
 
                 progress.Report(5);
 
@@ -434,9 +423,6 @@ namespace MediaBrowser.Controller.Entities
                         {
                         }
 
-                        else if (isOffline)
-                        {
-                        }
                         else
                         {
                             Logger.Debug("Removed item: " + item.Path);
@@ -818,12 +804,6 @@ namespace MediaBrowser.Controller.Entities
                 }
             }
 
-            if (query.IsInBoxSet.HasValue)
-            {
-                Logger.Debug("Query requires post-filtering due to IsInBoxSet");
-                return true;
-            }
-
             // Filter by Video3DFormat
             if (query.Is3D.HasValue)
             {
@@ -993,7 +973,7 @@ namespace MediaBrowser.Controller.Entities
             var user = query.User;
 
             // Check recursive - don't substitute in plain folder views
-            if (user != null && query.Recursive)
+            if (user != null)
             {
                 items = CollapseBoxSetItemsIfNeeded(items, query, this, user, ConfigurationManager, CollectionManager);
             }
@@ -1183,11 +1163,6 @@ namespace MediaBrowser.Controller.Entities
             }
 
             if (request.IsHD.HasValue)
-            {
-                return false;
-            }
-
-            if (request.IsInBoxSet.HasValue)
             {
                 return false;
             }
@@ -1458,6 +1433,26 @@ namespace MediaBrowser.Controller.Entities
             }
         }
 
+        public bool ContainsLinkedChildByItemId(Guid itemId)
+        {
+            var linkedChildren = LinkedChildren;
+            foreach (var i in linkedChildren)
+            {
+                if (i.ItemId.HasValue && i.ItemId.Value == itemId)
+                {
+                    return true;
+                }
+
+                var child = GetLinkedChild(i);
+
+                if (child != null && child.Id == itemId)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         public List<BaseItem> GetLinkedChildren(User user)
         {
             if (!FilterLinkedChildrenPerUser || user == null)
@@ -1473,11 +1468,12 @@ namespace MediaBrowser.Controller.Entities
                 return list;
             }
 
-            var allUserRootChildren = LibraryManager.GetUserRootFolder().Children.OfType<Folder>().ToList();
+            var allUserRootChildren = LibraryManager.GetUserRootFolder()
+                .GetChildren(user, true)
+                .OfType<Folder>()
+                .ToList();
 
             var collectionFolderIds = allUserRootChildren
-                .OfType<CollectionFolder>()
-                .Where(i => i.IsVisible(user))
                 .Select(i => i.Id)
                 .ToList();
 

@@ -15,6 +15,15 @@ namespace MediaBrowser.Controller.Playlists
 {
     public class Playlist : Folder, IHasShares
     {
+        public static string[] SupportedExtensions = new string[] {
+
+            ".m3u",
+            ".m3u8",
+            ".pls",
+            ".wpl",
+            ".zpl"
+        };
+
         public string OwnerUserId { get; set; }
 
         public List<Share> Shares { get; set; }
@@ -22,6 +31,27 @@ namespace MediaBrowser.Controller.Playlists
         public Playlist()
         {
             Shares = new List<Share>();
+        }
+
+        public static bool IsPlaylistFile(string path)
+        {
+            return System.IO.Path.HasExtension(path);
+        }
+
+        [IgnoreDataMember]
+        public override string ContainingFolderPath
+        {
+            get
+            {
+                var path = Path;
+
+                if (IsPlaylistFile(path))
+                {
+                    return FileSystem.GetDirectoryName(path);
+                }
+
+                return path;
+            }
         }
 
         [IgnoreDataMember]

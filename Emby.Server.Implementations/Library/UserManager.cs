@@ -95,6 +95,20 @@ namespace Emby.Server.Implementations.Library
             DeletePinFile();
         }
 
+        public NameIdPair[] GetAuthenticationProviders()
+        {
+            return _authenticationProviders
+                .Where(i => i.IsEnabled)
+                .OrderBy(i => i is DefaultAuthenticationProvider ? 0 : 1)
+                .ThenBy(i => i.Name)
+                .Select(i => new NameIdPair
+                {
+                    Name = i.Name,
+                    Id = GetAuthenticationProviderId(i)
+                })
+                .ToArray();
+        }
+
         public void AddParts(IEnumerable<IAuthenticationProvider> authenticationProviders)
         {
             _authenticationProviders = authenticationProviders.ToArray();
@@ -277,16 +291,24 @@ namespace Emby.Server.Implementations.Library
                 if (success && authenticationProvider != null && !(authenticationProvider is DefaultAuthenticationProvider))
                 {
                     user = await CreateUser(username).ConfigureAwait(false);
+
+                    var hasNewUserPolicy = authenticationProvider as IHasNewUserPolicy;
+                    if (hasNewUserPolicy != null)
+                    {
+                        var policy = hasNewUserPolicy.GetNewUserPolicy();
+                        UpdateUserPolicy(user, policy, true);
+                    }
                 }
             }
 
             if (success && user != null && authenticationProvider != null)
             {
                 var providerId = GetAuthenticationProviderId(authenticationProvider);
-                if (!string.Equals(providerId, user.AuthenticationProviderId, StringComparison.OrdinalIgnoreCase))
+
+                if (!string.Equals(providerId, user.Policy.AuthenticationProviderId, StringComparison.OrdinalIgnoreCase))
                 {
-                    user.AuthenticationProviderId = providerId;
-                    UpdateUser(user);
+                    user.Policy.AuthenticationProviderId = providerId;
+                    UpdateUserPolicy(user, user.Policy, true);
                 }
             }
 
@@ -362,9 +384,9 @@ namespace Emby.Server.Implementations.Library
 
         private IAuthenticationProvider[] GetAuthenticationProviders(User user)
         {
-            var authenticationProviderId = user == null ? null : user.AuthenticationProviderId;
+            var authenticationProviderId = user == null ? null : user.Policy.AuthenticationProviderId;
 
-            var providers = _authenticationProviders;
+            var providers = _authenticationProviders.Where(i => i.IsEnabled).ToArray();
 
             if (!string.IsNullOrEmpty(authenticationProviderId))
             {
@@ -383,7 +405,15 @@ namespace Emby.Server.Implementations.Library
         {
             try
             {
-                await provider.Authenticate(username, password, resolvedUser).ConfigureAwait(false);
+                var requiresResolvedUser = provider as IRequiresResolvedUser;
+                if (requiresResolvedUser != null)
+                {
+                    await requiresResolvedUser.Authenticate(username, password, resolvedUser).ConfigureAwait(false);
+                }
+                else
+                {
+                    await provider.Authenticate(username, password).ConfigureAwait(false);
+                }
 
                 return true;
             }
@@ -876,7 +906,7 @@ namespace Emby.Server.Implementations.Library
         private PasswordPinCreationResult _lastPasswordPinCreationResult;
         private int _pinAttempts;
 
-        private PasswordPinCreationResult CreatePasswordResetPin()
+        private async Task<PasswordPinCreationResult> CreatePasswordResetPin()
         {
             var num = new Random().Next(1, 9999);
 
@@ -890,7 +920,7 @@ namespace Emby.Server.Implementations.Library
 
             var text = new StringBuilder();
 
-            var localAddress = _appHost.GetLocalApiUrl(CancellationToken.None).Result ?? string.Empty;
+            var localAddress = (await _appHost.GetLocalApiUrl(CancellationToken.None).ConfigureAwait(false)) ?? string.Empty;
 
             text.AppendLine("Use your web browser to visit:");
             text.AppendLine(string.Empty);
@@ -919,7 +949,7 @@ namespace Emby.Server.Implementations.Library
             return result;
         }
 
-        public ForgotPasswordResult StartForgotPasswordProcess(string enteredUsername, bool isInNetwork)
+        public async Task<ForgotPasswordResult> StartForgotPasswordProcess(string enteredUsername, bool isInNetwork)
         {
             DeletePinFile();
 
@@ -947,7 +977,7 @@ namespace Emby.Server.Implementations.Library
                     action = ForgotPasswordAction.PinCode;
                 }
 
-                var result = CreatePasswordResetPin();
+                var result = await CreatePasswordResetPin().ConfigureAwait(false);
                 pinFile = result.PinFile;
                 expirationDate = result.ExpirationDate;
             }
@@ -960,7 +990,7 @@ namespace Emby.Server.Implementations.Library
             };
         }
 
-        public PinRedeemResult RedeemPasswordResetPin(string pin)
+        public async Task<PinRedeemResult> RedeemPasswordResetPin(string pin)
         {
             DeletePinFile();
 
@@ -981,8 +1011,7 @@ namespace Emby.Server.Implementations.Library
 
                 foreach (var user in users)
                 {
-                    var task = ResetPassword(user);
-                    Task.WaitAll(task);
+                    await ResetPassword(user).ConfigureAwait(false);
 
                     if (user.Policy.IsDisabled)
                     {
@@ -1029,7 +1058,7 @@ namespace Emby.Server.Implementations.Library
 
         public UserPolicy GetUserPolicy(User user)
         {
-            var path = GetPolifyFilePath(user);
+            var path = GetPolicyFilePath(user);
 
             try
             {
@@ -1079,7 +1108,7 @@ namespace Emby.Server.Implementations.Library
                 userPolicy = _jsonSerializer.DeserializeFromString<UserPolicy>(json);
             }
 
-            var path = GetPolifyFilePath(user);
+            var path = GetPolicyFilePath(user);
 
             _fileSystem.CreateDirectory(_fileSystem.GetDirectoryName(path));
 
@@ -1097,7 +1126,7 @@ namespace Emby.Server.Implementations.Library
 
         private void DeleteUserPolicy(User user)
         {
-            var path = GetPolifyFilePath(user);
+            var path = GetPolicyFilePath(user);
 
             try
             {
@@ -1116,7 +1145,7 @@ namespace Emby.Server.Implementations.Library
             }
         }
 
-        private string GetPolifyFilePath(User user)
+        private string GetPolicyFilePath(User user)
         {
             return Path.Combine(user.ConfigurationDirectoryPath, "policy.xml");
         }

@@ -410,6 +410,10 @@
     <Compile Include="Logging\UnhandledExceptionWriter.cs" />
     <Compile Include="MediaEncoder\EncodingManager.cs" />
     <Compile Include="Migrations\IVersionMigration.cs" />
+    <Compile Include="Networking\IPNetwork\BigIntegerExt.cs" />
+    <Compile Include="Networking\IPNetwork\IPAddressCollection.cs" />
+    <Compile Include="Networking\IPNetwork\IPNetwork.cs" />
+    <Compile Include="Networking\IPNetwork\IPNetworkCollection.cs" />
     <Compile Include="Networking\NetworkManager.cs" />
     <Compile Include="Net\DisposableManagedObjectBase.cs" />
     <Compile Include="Net\SocketFactory.cs" />
@@ -622,8 +626,8 @@
       <Project>{1d74413b-e7cf-455b-b021-f52bdf881542}</Project>
       <Name>SocketHttpListener</Name>
     </ProjectReference>
-    <Reference Include="Emby.Naming">
-      <HintPath>..\ThirdParty\emby\Emby.Naming.dll</HintPath>
+    <Reference Include="Emby.Naming, Version=1.0.8.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\MediaBrowser.Naming.1.1.1\lib\netstandard1.3\Emby.Naming.dll</HintPath>
     </Reference>
     <Reference Include="Emby.Server.MediaEncoding">
       <HintPath>..\ThirdParty\emby\Emby.Server.MediaEncoding.dll</HintPath>
@@ -653,6 +657,7 @@
     <Reference Include="System" />
     <Reference Include="System.Configuration" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Numerics" />
     <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />

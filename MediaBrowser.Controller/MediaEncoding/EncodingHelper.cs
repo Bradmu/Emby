@@ -62,6 +62,10 @@ namespace MediaBrowser.Controller.MediaEncoding
                 {
                     return GetAvailableEncoder("h264_nvenc", defaultEncoder);
                 }
+                if (string.Equals(hwType, "amf", StringComparison.OrdinalIgnoreCase))
+                {
+                    return GetAvailableEncoder("h264_amf", defaultEncoder);
+                }
                 if (string.Equals(hwType, "omx", StringComparison.OrdinalIgnoreCase))
                 {
                     return GetAvailableEncoder("h264_omx", defaultEncoder);
@@ -664,7 +668,18 @@ namespace MediaBrowser.Controller.MediaEncoding
             // h264 (h264_qsv)
             else if (string.Equals(videoEncoder, "h264_qsv", StringComparison.OrdinalIgnoreCase))
             {
-                param += "-preset 7 -look_ahead 0";
+                string[] valid_h264_qsv = new string[] { "veryslow", "slower", "slow", "medium", "fast", "faster", "veryfast" };
+
+                if (valid_h264_qsv.Contains(encodingOptions.H264Preset, StringComparer.OrdinalIgnoreCase))
+                {
+                    param += "-preset " + encodingOptions.H264Preset;
+                }
+                else
+                {
+                    param += "-preset 7";
+                }
+
+                param += " -look_ahead 0";
 
             }
 
@@ -2150,6 +2165,26 @@ namespace MediaBrowser.Controller.MediaEncoding
                             break;
                         case "mpeg2video":
                             if (_mediaEncoder.SupportsDecoder("mpeg2_mmal") && encodingOptions.HardwareDecodingCodecs.Contains("mpeg2video", StringComparer.OrdinalIgnoreCase))
+                            {
+                                return "-c:v mpeg2_mmal";
+                            }
+                            break;
+                    }
+                }
+
+                else if (string.Equals(encodingOptions.HardwareAccelerationType, "amf", StringComparison.OrdinalIgnoreCase))
+                {
+                    switch (videoStream.Codec.ToLower())
+                    {
+                        case "avc":
+                        case "h264":
+                            if (_mediaEncoder.SupportsDecoder("h264_amf") && encodingOptions.HardwareDecodingCodecs.Contains("h264", StringComparer.OrdinalIgnoreCase))
+                            {
+                                return "-c:v h264_amf";
+                            }
+                            break;
+                        case "mpeg2video":
+                            if (_mediaEncoder.SupportsDecoder("hevc_amf") && encodingOptions.HardwareDecodingCodecs.Contains("mpeg2video", StringComparer.OrdinalIgnoreCase))
                             {
                                 return "-c:v mpeg2_mmal";
                             }

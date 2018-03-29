@@ -231,22 +231,6 @@ namespace Emby.Server.Implementations.LiveTv
             return _libraryManager.GetItemById(id) as LiveTvProgram;
         }
 
-        public async Task<BaseItem> GetInternalRecording(string id, CancellationToken cancellationToken)
-        {
-            if (string.IsNullOrEmpty(id))
-            {
-                throw new ArgumentNullException("id");
-            }
-
-            var result = await GetInternalRecordings(new RecordingQuery
-            {
-                Id = id
-
-            }, new DtoOptions(), cancellationToken).ConfigureAwait(false);
-
-            return result.Items.FirstOrDefault();
-        }
-
         public Task<Tuple<MediaSourceInfo, ILiveStream>> GetChannelStream(string id, string mediaSourceId, CancellationToken cancellationToken)
         {
             return GetLiveStream(id, mediaSourceId, cancellationToken);
@@ -501,7 +485,7 @@ namespace Emby.Server.Implementations.LiveTv
 
             if (isNew)
             {
-                _libraryManager.CreateItem(item, cancellationToken);
+                _libraryManager.CreateItem(item);
             }
             else if (forceUpdate)
             {
@@ -568,13 +552,47 @@ namespace Emby.Server.Implementations.LiveTv
             }
             item.ExternalSeriesId = seriesId;
 
+            var tags = new List<string>();
+            if (info.IsLive)
+            {
+                tags.Add("Live");
+            }
+            if (info.IsPremiere)
+            {
+                tags.Add("Premiere");
+            }
+            if (info.IsNews)
+            {
+                tags.Add("News");
+            }
+            if (info.IsSports)
+            {
+                tags.Add("Sports");
+            }
+            if (info.IsKids)
+            {
+                tags.Add("Kids");
+            }
+            if (info.IsRepeat)
+            {
+                tags.Add("Repeat");
+            }
+            if (info.IsMovie)
+            {
+                tags.Add("Movie");
+            }
+            if (info.IsSeries)
+            {
+                tags.Add("Series");
+            }
+
+            item.Tags = tags.ToArray();
+
             item.Genres = info.Genres;
             item.IsHD = info.IsHD;
             item.IsKids = info.IsKids;
-            item.IsLive = info.IsLive;
             item.IsMovie = info.IsMovie;
             item.IsNews = info.IsNews;
-            item.IsPremiere = info.IsPremiere;
             item.IsRepeat = info.IsRepeat;
             item.IsSeries = info.IsSeries;
             item.IsSports = info.IsSports;
@@ -584,7 +602,10 @@ namespace Emby.Server.Implementations.LiveTv
             item.RunTimeTicks = (info.EndDate - info.StartDate).Ticks;
             item.ProviderIds = info.ProviderIds;
 
-            // TODO SeriesProviderIds
+            foreach (var providerId in info.SeriesProviderIds)
+            {
+                info.ProviderIds["Series" + providerId.Key] = providerId.Value;
+            }
 
             if (item.StartDate != info.StartDate)
             {
@@ -1085,8 +1106,6 @@ namespace Emby.Server.Implementations.LiveTv
             fields.Remove(ItemFields.BasicSyncInfo);
             dtoOptions.Fields = fields.ToArray(fields.Count);
 
-            await GetRecordings(new RecordingQuery(), dtoOptions, cancellationToken).ConfigureAwait(false);
-
             progress.Report(100);
         }
 
@@ -1475,19 +1494,6 @@ namespace Emby.Server.Implementations.LiveTv
             };
         }
 
-        public async Task<QueryResult<BaseItem>> GetInternalRecordings(RecordingQuery query, DtoOptions options, CancellationToken cancellationToken)
-        {
-            var user = string.IsNullOrEmpty(query.UserId) ? null : _userManager.GetUserById(query.UserId);
-            if (user != null && !IsLiveTvEnabled(user))
-            {
-                return new QueryResult<BaseItem>();
-            }
-
-            var folder = GetInternalLiveTvFolder(cancellationToken);
-
-            return GetEmbyRecordings(query, options, user);
-        }
-
         public async Task AddInfoToProgramDto(List<Tuple<BaseItem, BaseItemDto>> tuples, ItemFields[] fields, User user = null)
         {
             var programTuples = new List<Tuple<BaseItemDto, string, string, string>>();
@@ -1632,13 +1638,13 @@ namespace Emby.Server.Implementations.LiveTv
             }
         }
 
-        public async Task<QueryResult<BaseItemDto>> GetRecordings(RecordingQuery query, DtoOptions options, CancellationToken cancellationToken)
+        public QueryResult<BaseItemDto> GetRecordings(RecordingQuery query, DtoOptions options)
         {
             var user = string.IsNullOrEmpty(query.UserId) ? null : _userManager.GetUserById(query.UserId);
 
             RemoveFields(options);
 
-            var internalResult = await GetInternalRecordings(query, options, cancellationToken).ConfigureAwait(false);
+            var internalResult = GetEmbyRecordings(query, options, user);
 
             var returnArray = _dtoService.GetBaseItemDtos(internalResult.Items, options, user);
 
@@ -1779,18 +1785,6 @@ namespace Emby.Server.Implementations.LiveTv
                     Id = id
                 }
             }, _logger);
-        }
-
-        public async Task<BaseItemDto> GetRecording(string id, DtoOptions options, CancellationToken cancellationToken, User user = null)
-        {
-            var item = await GetInternalRecording(id, cancellationToken).ConfigureAwait(false);
-
-            if (item == null)
-            {
-                return null;
-            }
-
-            return _dtoService.GetBaseItemDto(item, options, user);
         }
 
         public async Task<TimerInfoDto> GetTimer(string id, CancellationToken cancellationToken)
@@ -2358,7 +2352,7 @@ namespace Emby.Server.Implementations.LiveTv
         public Folder GetInternalLiveTvFolder(CancellationToken cancellationToken)
         {
             var name = _localization.GetLocalizedString("HeaderLiveTV");
-            return _libraryManager.GetNamedView(name, CollectionType.LiveTv, name, cancellationToken);
+            return _libraryManager.GetNamedView(name, CollectionType.LiveTv, name);
         }
 
         public async Task<TunerHostInfo> SaveTunerHost(TunerHostInfo info, bool dataSourceChanged = true)
@@ -2612,7 +2606,7 @@ namespace Emby.Server.Implementations.LiveTv
                 IsRecordingsFolder = true,
                 RefreshLatestChannelItems = refreshChannels
 
-            }, CancellationToken.None).Result.Items);
+            }).Items);
 
             return folders.Cast<BaseItem>().ToList();
         }

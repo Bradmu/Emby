@@ -391,21 +391,26 @@ namespace MediaBrowser.Controller.Entities
                     return null;
                 }
 
-                if (path.StartsWith("Rtsp", StringComparison.OrdinalIgnoreCase))
-                {
-                    return MediaProtocol.Rtsp;
-                }
-                if (path.StartsWith("Rtmp", StringComparison.OrdinalIgnoreCase))
-                {
-                    return MediaProtocol.Rtmp;
-                }
-                if (path.StartsWith("Http", StringComparison.OrdinalIgnoreCase))
-                {
-                    return MediaProtocol.Http;
-                }
-
-                return FileSystem.IsPathFile(path) ? MediaProtocol.File : MediaProtocol.Http;
+                return GetPathProtocol(path);
             }
+        }
+
+        public static MediaProtocol GetPathProtocol(string path)
+        {
+            if (path.StartsWith("Rtsp", StringComparison.OrdinalIgnoreCase))
+            {
+                return MediaProtocol.Rtsp;
+            }
+            if (path.StartsWith("Rtmp", StringComparison.OrdinalIgnoreCase))
+            {
+                return MediaProtocol.Rtmp;
+            }
+            if (path.StartsWith("Http", StringComparison.OrdinalIgnoreCase))
+            {
+                return MediaProtocol.Http;
+            }
+
+            return FileSystem.IsPathFile(path) ? MediaProtocol.File : MediaProtocol.Http;
         }
 
         public bool IsPathProtocol(MediaProtocol protocol)
@@ -514,7 +519,7 @@ namespace MediaBrowser.Controller.Entities
             get { return this.GetImagePath(ImageType.Primary); }
         }
 
-        public virtual bool IsInternetMetadataEnabled()
+        public bool IsMetadataFetcherEnabled(LibraryOptions libraryOptions, string name)
         {
             if (SourceType == SourceType.Channel)
             {
@@ -522,7 +527,44 @@ namespace MediaBrowser.Controller.Entities
                 return !EnableMediaSourceDisplay;
             }
 
-            return LibraryManager.GetLibraryOptions(this).EnableInternetProviders;
+            var typeOptions = libraryOptions.GetTypeOptions(GetType().Name);
+            if (typeOptions != null)
+            {
+                return typeOptions.MetadataFetchers.Contains(name, StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (!libraryOptions.EnableInternetProviders)
+            {
+                return false;
+            }
+            
+            var itemConfig = ConfigurationManager.Configuration.MetadataOptions.FirstOrDefault(i => string.Equals(i.ItemType, GetType().Name, StringComparison.OrdinalIgnoreCase));
+
+            return itemConfig == null || !itemConfig.DisabledMetadataFetchers.Contains(name, StringComparer.OrdinalIgnoreCase);
+        }
+
+        public bool IsImageFetcherEnabled(LibraryOptions libraryOptions, string name)
+        {
+            if (SourceType == SourceType.Channel)
+            {
+                // hack alert
+                return !EnableMediaSourceDisplay;
+            }
+
+            var typeOptions = libraryOptions.GetTypeOptions(GetType().Name);
+            if (typeOptions != null)
+            {
+                return typeOptions.ImageFetchers.Contains(name, StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (!libraryOptions.EnableInternetProviders)
+            {
+                return false;
+            }
+
+            var itemConfig = ConfigurationManager.Configuration.MetadataOptions.FirstOrDefault(i => string.Equals(i.ItemType, GetType().Name, StringComparison.OrdinalIgnoreCase));
+
+            return itemConfig == null || !itemConfig.DisabledImageFetchers.Contains(name, StringComparer.OrdinalIgnoreCase);
         }
 
         public virtual bool CanDelete()
@@ -1835,9 +1877,13 @@ namespace MediaBrowser.Controller.Entities
 
         private BaseItem FindLinkedChild(LinkedChild info)
         {
-            if (!string.IsNullOrEmpty(info.Path))
+            var path = info.Path;
+
+            if (!string.IsNullOrEmpty(path))
             {
-                var itemByPath = LibraryManager.FindByPath(info.Path, null);
+                path = FileSystem.MakeAbsolutePath(ContainingFolderPath, path);
+
+                var itemByPath = LibraryManager.FindByPath(path, null);
 
                 if (itemByPath == null)
                 {
@@ -2315,7 +2361,7 @@ namespace MediaBrowser.Controller.Entities
             }
 
             var filename = System.IO.Path.GetFileNameWithoutExtension(Path);
-            var extensions = new List<string> { ".nfo", ".xml", ".srt", ".vtt", ".sub", ".idx", ".txt", ".edl" };
+            var extensions = new List<string> { ".nfo", ".xml", ".srt", ".vtt", ".sub", ".idx", ".txt", ".edl", ".bif", ".smi", ".ttml" };
             extensions.AddRange(SupportedImageExtensions);
 
             return FileSystem.GetFiles(FileSystem.GetDirectoryName(Path), extensions.ToArray(extensions.Count), false, false)

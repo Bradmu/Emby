@@ -125,6 +125,19 @@ namespace Emby.Server.Implementations.Library
             }
 
             var mediaSources = GetStaticMediaSources(hasMediaSources, enablePathSubstitution, user);
+
+            if (mediaSources.Count == 1 && mediaSources[0].Type != MediaSourceType.Placeholder && !mediaSources[0].MediaStreams.Any(i => i.Type == MediaStreamType.Audio || i.Type == MediaStreamType.Video))
+            {
+                await item.RefreshMetadata(new MediaBrowser.Controller.Providers.MetadataRefreshOptions(_fileSystem)
+                {
+                    EnableRemoteContentProbe = true,
+                    MetadataRefreshMode = MediaBrowser.Controller.Providers.MetadataRefreshMode.FullRefresh
+
+                }, cancellationToken).ConfigureAwait(false);
+
+                mediaSources = GetStaticMediaSources(hasMediaSources, enablePathSubstitution, user);
+            }
+
             var dynamicMediaSources = await GetDynamicMediaSources(hasMediaSources, cancellationToken).ConfigureAwait(false);
 
             var list = new List<MediaSourceInfo>();
@@ -137,13 +150,11 @@ namespace Emby.Server.Implementations.Library
                 {
                     SetUserProperties(hasMediaSources as BaseItem, source, user);
                 }
-                if (source.Protocol == MediaProtocol.File || source.Protocol == MediaProtocol.Http)
+
+                // Validate that this is actually possible
+                if (source.SupportsDirectStream)
                 {
-                    // trust whatever was set by the media source provider
-                }
-                else
-                {
-                    source.SupportsDirectStream = false;
+                    source.SupportsDirectStream = SupportsDirectStream(source.Path, source.Protocol);
                 }
 
                 list.Add(source);
@@ -164,6 +175,29 @@ namespace Emby.Server.Implementations.Library
             }
 
             return SortMediaSources(list).Where(i => i.Type != MediaSourceType.Placeholder);
+        }
+
+        private bool SupportsDirectStream(string path, MediaProtocol protocol)
+        {
+            if (protocol == MediaProtocol.File)
+            {
+                return true;
+            }
+
+            if (protocol == MediaProtocol.Http)
+            {
+                if (path != null)
+                {
+                    if (path.IndexOf(".m3u", StringComparison.OrdinalIgnoreCase) != -1)
+                    {
+                        return false;
+                    }
+
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private async Task<IEnumerable<MediaSourceInfo>> GetDynamicMediaSources(IHasMediaSources item, CancellationToken cancellationToken)
@@ -272,7 +306,7 @@ namespace Emby.Server.Implementations.Library
                     return;
                 }
             }
-            
+
             var preferredSubs = string.IsNullOrEmpty(user.Configuration.SubtitleLanguagePreference)
                 ? new string[] { } : new string[] { user.Configuration.SubtitleLanguagePreference };
 
@@ -347,6 +381,12 @@ namespace Emby.Server.Implementations.Library
 
                 var mediaSource = mediaSourceTuple.Item1;
 
+                // Validate that this is actually possible
+                if (mediaSource.SupportsDirectStream)
+                {
+                    mediaSource.SupportsDirectStream = SupportsDirectStream(mediaSource.Path, mediaSource.Protocol);
+                }
+
                 if (string.IsNullOrEmpty(mediaSource.LiveStreamId))
                 {
                     throw new InvalidOperationException(string.Format("{0} returned null LiveStreamId", provider.GetType().Name));
@@ -367,7 +407,7 @@ namespace Emby.Server.Implementations.Library
                 var json = _jsonSerializer.SerializeToString(mediaSource);
                 _logger.Debug("Live stream opened: " + json);
                 var clone = _jsonSerializer.DeserializeFromString<MediaSourceInfo>(json);
-               
+
                 if (!string.IsNullOrEmpty(request.UserId))
                 {
                     var user = _userManager.GetUserById(request.UserId);

@@ -686,7 +686,30 @@ namespace MediaBrowser.Controller.MediaEncoding
             // h264 (h264_nvenc)
             else if (string.Equals(videoEncoder, "h264_nvenc", StringComparison.OrdinalIgnoreCase))
             {
-                param += "-preset default";
+                switch (encodingOptions.H264Preset)
+				{
+					case "veryslow" : 
+						
+						param += "-preset lossless";
+						break;
+						
+					case "slow" :
+					
+					case "slower" :
+						
+						param += "-preset slow";
+						break;
+
+					case "medium" :
+						
+						param += "-preset medium";
+						break;
+
+					default:
+				
+						param += "-preset default";
+						break;
+				}
             }
 
             // webm

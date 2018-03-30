@@ -295,7 +295,7 @@ namespace Emby.Server.Implementations.LiveTv.Listings
                 EpisodeTitle = episodeTitle,
                 Audio = audioType,
                 //IsNew = programInfo.@new ?? false,
-                IsRepeat = programInfo.repeat,
+                IsRepeat = programInfo.@new == null,
                 IsSeries = string.Equals(details.entityType, "episode", StringComparison.OrdinalIgnoreCase),
                 ImageUrl = details.primaryImage,
                 ThumbImageUrl = details.thumbImage,
@@ -382,10 +382,19 @@ namespace Emby.Server.Implementations.LiveTv.Listings
                 }
             }
 
-            if (!string.IsNullOrWhiteSpace(details.originalAirDate) && (!info.IsSeries || info.IsRepeat))
+            if (!string.IsNullOrWhiteSpace(details.originalAirDate))
             {
                 info.OriginalAirDate = DateTime.Parse(details.originalAirDate);
                 info.ProductionYear = info.OriginalAirDate.Value.Year;
+            }
+
+            if (details.movie != null)
+            {
+                int year;
+                if (!string.IsNullOrEmpty(details.movie.year) && int.TryParse(details.movie.year, out year))
+                {
+                    info.ProductionYear = year;
+                }
             }
 
             if (details.genres != null)

@@ -1936,7 +1936,7 @@ namespace Emby.Server.Implementations
         {
             get
             {
-                return SupportsHttps && (ServerConfigurationManager.Configuration.EnableHttps || ServerConfigurationManager.Configuration.RequireHttps);
+                return SupportsHttps && ServerConfigurationManager.Configuration.EnableHttps;
             }
         }
 
@@ -2065,14 +2065,20 @@ namespace Emby.Server.Implementations
                 return cachedResult;
             }
 
+            var logPing = false;
+
+#if DEBUG
+            logPing = true;
+#endif
+
             try
             {
                 using (var response = await HttpClient.SendAsync(new HttpRequestOptions
                 {
                     Url = apiUrl,
                     LogErrorResponseBody = false,
-                    LogErrors = false,
-                    LogRequest = false,
+                    LogErrors = logPing,
+                    LogRequest = logPing,
                     TimeoutMs = 30000,
                     BufferContent = false,
 
@@ -2217,7 +2223,7 @@ namespace Emby.Server.Implementations
             try
             {
                 var result = await new GithubUpdater(HttpClient, JsonSerializer).CheckForUpdateResult("MediaBrowser",
-                    "Emby",
+                    "Emby.Releases",
                     ApplicationVersion,
                     updateLevel,
                     ReleaseAssetFilename,

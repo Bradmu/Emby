@@ -134,7 +134,7 @@ namespace MediaBrowser.Controller.Entities
 
                 if (query.IncludeItemTypes.Length == 0)
                 {
-                    query.IncludeItemTypes = new[] { typeof(Movie).Name, typeof(BoxSet).Name };
+                    query.IncludeItemTypes = new[] { typeof(Movie).Name };
                 }
 
                 return parent.QueryRecursive(query);
@@ -558,15 +558,6 @@ namespace MediaBrowser.Controller.Entities
             if (query.IsPlayed.HasValue)
             {
                 if (item.IsPlayed(user) != query.IsPlayed.Value)
-                {
-                    return false;
-                }
-            }
-
-            if (query.IsInBoxSet.HasValue)
-            {
-                var val = query.IsInBoxSet.Value;
-                if (item.GetParents().OfType<BoxSet>().Any() != val)
                 {
                     return false;
                 }
@@ -1045,12 +1036,12 @@ namespace MediaBrowser.Controller.Entities
 
         private UserView GetUserViewWithName(string name, string type, string sortName, BaseItem parent)
         {
-            return _userViewManager.GetUserSubView(name, parent.Id.ToString("N"), type, sortName, CancellationToken.None);
+            return _userViewManager.GetUserSubView(name, parent.Id.ToString("N"), type, sortName);
         }
 
         private UserView GetUserView(string type, string localizationKey, string sortName, BaseItem parent)
         {
-            return _userViewManager.GetUserSubView(parent.Id.ToString("N"), type, localizationKey, sortName, CancellationToken.None);
+            return _userViewManager.GetUserSubView(parent.Id.ToString("N"), type, localizationKey, sortName);
         }
 
         public static IEnumerable<BaseItem> FilterForAdjacency(List<BaseItem> list, string adjacentToId)
